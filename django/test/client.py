@@ -12,6 +12,7 @@ from urllib.parse import unquote_to_bytes, urljoin, urlparse, urlsplit
 from django.conf import settings
 from django.core.handlers.base import BaseHandler
 from django.core.handlers.wsgi import WSGIRequest
+from django.core.serializers.json import DjangoJSONEncoder
 from django.core.signals import (
     got_request_exception, request_finished, request_started,
 )
@@ -31,6 +32,7 @@ __all__ = ('Client', 'RedirectCycleError', 'RequestFactory', 'encode_file', 'enc
 
 BOUNDARY = 'BoUnDaRyStRiNg'
 MULTIPART_CONTENT = 'multipart/form-data; boundary=%s' % BOUNDARY
+JSON_CONTENT = 'application/json'
 CONTENT_TYPE_RE = re.compile(r'.*; charset=([\w\d-]+);?')
 # JSON Vendor Tree spec: https://tools.ietf.org/html/rfc6838#section-3.2
 JSON_CONTENT_TYPE_RE = re.compile(r'^application\/(vnd\..+\+)?json')
@@ -260,7 +262,8 @@ class RequestFactory:
     Once you have a request object you can pass it to any view function,
     just as if that view had been hooked up using a URLconf.
     """
-    def __init__(self, **defaults):
+    def __init__(self, *, json_encoder=DjangoJSONEncoder, **defaults):
+        self.json_encoder = json_encoder
         self.defaults = defaults
         self.cookies = SimpleCookie()
         self.errors = BytesIO()
@@ -309,6 +312,17 @@ class RequestFactory:
                 charset = settings.DEFAULT_CHARSET
             return force_bytes(data, encoding=charset)
 
+    def _encode_json(self, data, encoder, content_type):
+        """
+        Return correctly encoded JSON if it is a dict.
+        If not a dict assume it is already correctly encoded.
+        """
+        if content_type != JSON_CONTENT:
+            return data
+        if data and isinstance(data, dict):
+            return json.dumps(data, cls=encoder)
+        return data
+
     def _get_path(self, parsed):
         path = parsed.path
         # If there are parameters, add them
@@ -331,7 +345,7 @@ class RequestFactory:
     def post(self, path, data=None, content_type=MULTIPART_CONTENT,
              secure=False, **extra):
         """Construct a POST request."""
-        data = {} if data is None else data
+        data = self._encode_json({} if data is None else data, self.json_encoder, content_type)
         post_data = self._encode_data(data, content_type)
 
         return self.generic('POST', path, post_data, content_type,
@@ -358,18 +372,21 @@ class RequestFactory:
     def put(self, path, data='', content_type='application/octet-stream',
             secure=False, **extra):
         """Construct a PUT request."""
+        data = self._encode_json(data, self.json_encoder, content_type)
         return self.generic('PUT', path, data, content_type,
                             secure=secure, **extra)
 
     def patch(self, path, data='', content_type='application/octet-stream',
               secure=False, **extra):
         """Construct a PATCH request."""
+        data = self._encode_json(data, self.json_encoder, content_type)
         return self.generic('PATCH', path, data, content_type,
                             secure=secure, **extra)
 
     def delete(self, path, data='', content_type='application/octet-stream',
                secure=False, **extra):
         """Construct a DELETE request."""
+        data = self._encode_json(data, self.json_encoder, content_type)
         return self.generic('DELETE', path, data, content_type,
                             secure=secure, **extra)
 
@@ -418,8 +435,8 @@ class Client(RequestFactory):
     contexts and templates produced by a view, rather than the
     HTML rendered to the end-user.
     """
-    def __init__(self, enforce_csrf_checks=False, **defaults):
-        super().__init__(**defaults)
+    def __init__(self, enforce_csrf_checks=False, *, json_encoder=DjangoJSONEncoder, **defaults):
+        super().__init__(json_encoder=json_encoder, **defaults)
         self.handler = ClientHandler(enforce_csrf_checks)
         self.exc_info = None
 

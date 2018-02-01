@@ -109,7 +109,7 @@ Making requests
 
 Use the ``django.test.Client`` class to make requests.
 
-.. class:: Client(enforce_csrf_checks=False, **defaults)
+.. class:: Client(enforce_csrf_checks=False, json_encoder=DjangoJSONEncoder, **defaults)
 
     It requires no arguments at time of construction. However, you can use
     keywords arguments to specify some default headers. For example, this will
@@ -124,6 +124,15 @@ Use the ``django.test.Client`` class to make requests.
 
     The ``enforce_csrf_checks`` argument can be used to test CSRF
     protection (see above).
+
+    The ``json_encoder`` argument allows you to set a custom JSON encoder.
+    This will be used when providing JSON data as a dictionary to either
+    the :meth:`Client.post`, :meth:`Client.put`, :meth:`Client.patch` or
+    :meth:`Client.delete` methods.
+
+        .. versionchanged:: 2.1
+
+            The ``json_encoder`` argument was added.
 
     Once you have a ``Client`` instance, you can call any of the following
     methods:
@@ -206,9 +215,25 @@ Use the ``django.test.Client`` class to make requests.
 
             name=fred&passwd=secret
 
-        If you provide ``content_type`` (e.g. :mimetype:`text/xml` for an XML
-        payload), the contents of ``data`` will be sent as-is in the POST
-        request, using ``content_type`` in the HTTP ``Content-Type`` header.
+        If you provide ``content_type`` as :mimetype:`application/json` the
+        POST data will be presented as a binary string like so::
+
+            b'{"name": "fred", "passwd": "secret"}'
+
+        You can change the JSON encoder used for this process by providing a
+        ``json_encoder`` when initializing the ``Client``. This encoder is
+        only used when the ``content_type`` argument is set to
+        :mimetype:`application/json`
+
+        .. versionchanged:: 2.1
+
+            Serializing a ``dict`` was introduced in 2.1. To replicate this
+            behavior in previous versions pass in a pre-encoded JSON string.
+
+        If you provide any other ``content_type`` (e.g. :mimetype:`text/xml`
+        for an XML payload), the contents of ``data`` will be sent as-is in
+        the POST request, using ``content_type`` in the HTTP ``Content-Type``
+        header.
 
         If you don't provide a value for ``content_type``, the values in
         ``data`` will be transmitted with a content type of

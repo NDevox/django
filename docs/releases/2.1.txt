@@ -203,7 +203,18 @@ Templates
 Tests
 ~~~~~
 
-* ...
+* ``json_encoder`` parameter added to
+  `:class:`RequestFactory <django.test.RequestFactory>` and
+  :class:`Client <django.test.Client>`. Allowing customization of JSON
+  encoding in ``post``, ``put``, ``patch`` and ``delete`` requests.
+
+* :class:`RequestFactory.post() <django.test.RequestFactory>`,
+  :class:`RequestFactory.put() <django.test.RequestFactory>`,
+  :class:`RequestFactory.patch() <django.test.RequestFactory>`,
+  :class:`RequestFactory.delete() <django.test.RequestFactory>` methods
+  send valid JSON when a `dict` is passed in to the `data` parameter and
+  `content_type='application/json'`. This change also applies to
+  :class:`Client <django.test.Client>` and it's relevant methods.
 
 URLs
 ~~~~

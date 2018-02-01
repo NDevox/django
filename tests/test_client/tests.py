@@ -20,6 +20,7 @@ rather than the HTML rendered to the end-user.
 
 """
 import tempfile
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.core import mail
@@ -27,6 +28,7 @@ from django.http import HttpResponse
 from django.test import (
     Client, RequestFactory, SimpleTestCase, TestCase, override_settings,
 )
+from django.test.client import JSON_CONTENT
 from django.urls import reverse_lazy
 
 from .views import TwoArgException, get_view, post_view, trace_view
@@ -84,6 +86,52 @@ class ClientTest(TestCase):
         self.assertEqual(response.context['data'], '37')
         self.assertEqual(response.templates[0].name, 'POST Template')
         self.assertContains(response, 'Data received')
+
+    def assert_json_response(self, response, method):
+        """Assert an appropriate response was received from a JSON request."""
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['data'], 37)
+        self.assertEqual(response.templates[0].name, '{} Template'.format(method))
+        self.assertContains(response, 'Viewing {} page.'.format(method))
+
+    def test_json_post(self):
+        """POST some JSON data to a view"""
+        post_data = {'value': 37}
+
+        self.assert_json_response(self.client.post('/json_view/', post_data, content_type=JSON_CONTENT), 'POST')
+
+    def test_json_put(self):
+        """PUT some JSON data to a view"""
+        put_data = {'value': 37}
+        self.assert_json_response(self.client.put('/json_view/', put_data, content_type=JSON_CONTENT), 'PUT')
+
+    def test_json_patch(self):
+        """PATCH some JSON data to a view"""
+        patch_data = {'value': 37}
+        self.assert_json_response(self.client.patch('/json_view/', patch_data, content_type=JSON_CONTENT), 'PATCH')
+
+    def test_json_delete(self):
+        """DELETE some JSON data to a view"""
+        delete_data = {'value': 37}
+        self.assert_json_response(self.client.delete('/json_view/', delete_data, content_type=JSON_CONTENT), 'DELETE')
+
+    def test_encoded_json_post(self):
+        """POST some encoded JSON data to a view"""
+        post_data = '{"value": 37}'
+        self.assert_json_response(self.client.post('/json_view/', post_data, content_type=JSON_CONTENT), 'POST')
+
+    def test_custom_encoder(self):
+        """Test whether we use a given custom encoder."""
+        post_data = {'value': 37}
+        mock_encoder = mock.MagicMock()
+        mock_encoding = mock.MagicMock()
+        mock_encoder.return_value = mock_encoding
+        mock_encoding.encode.return_value = '{"value": 37}'
+
+        client = self.client_class(json_encoder=mock_encoder)
+        client.post('/json_view/', post_data, content_type=JSON_CONTENT)
+        self.assertTrue(mock_encoder.called)
+        self.assertTrue(mock_encoding.encode.called)
 
     def test_trace(self):
         """TRACE a view"""
